@@ -3,15 +3,17 @@
 
 <h3 align="center">Random Folder is an <s>lightweight and blazingly fast</s> app that pick a random subfolder inside of a main folder.</h3>
 
-# About
+## About
 
 This app was made thanks to [`Tauri`](https://tauri.studio/) which is a **lightweight alternative to Electron** with **rust for the _BackEnd_** and **Any WebFrameworks for the _FrontEnd_**.
 
 I've used [`Preact`](https://preactjs.com/) for the FrontEnd
 
-# Install
+## Install
 
-⚡ `[DISCLAIMER]`:: This app is not production ready and will never be, it's just a side project of mine to test the so called "Tauri" framework
+### ⚡ `[DISCLAIMER]`:: This app is not production ready and will never be, it's just a side project of mine to test the so called "Tauri" framework
+
+### 🪟 If you have windows you can install this app with the [official installer](https://github.com/Ilingu/random-folder/releases)
 
 To Install this app you will have to bundle it yourself (since it was not design to be installed)
 
