@@ -1,0 +1,77 @@
+{
+  "$schema": "..\\node_modules/@tauri-apps/cli\\schema.json",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:3000",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "random-folder",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "fs": {
+        "all": true,
+        "scope": ["*"]
+      },
+      "dialog": {
+        "open": true
+      },
+      "shell": {
+        "execute": true,
+        "scope": [{ "name": "explorer", "cmd": "explorer.exe", "args": true }]
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "DeveloperTool",
+      "copyright": "",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "identifier": "com.random-folder.dev",
+      "longDescription": "Random Folder is a lightweight and blazingly fast app that pick a random subfolder inside of a folder",
+      "shortDescription": "Pick a random folder",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "resources": [],
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": false
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 600,
+        "resizable": true,
+        "title": "Random Folder",
+        "width": 800,
+        "maximized": true
+      }
+    ]
+  }
+}
