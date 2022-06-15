@@ -1,7 +1,7 @@
 {
   "name": "random-folder",
   "private": true,
-  "version": "1.0.0-beta",
+  "version": "1.1.0-beta",
   "author": "Ilingu",
   "description": "Pick a random folder",
   "repository": {

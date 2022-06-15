@@ -27,9 +27,8 @@ export const OpenDialog = async (): Promise<FunctionJobs<string>> => {
   }
 };
 
-export const OpenFolder = async (path: string) => {
+export const OpenFolder = async (path: string) =>
   await new Command("explorer", path).execute();
-};
 
 export const ReadImage = async (
   FolderPath: string

@@ -12,7 +12,13 @@ const DisplayWinner = ({ FolderPath, ChooseFolder, PickWinner }: Props) => {
 
   return (
     <div id="WinnerDir">
-      <div className="box" onClick={() => OpenFolder(FolderPath)}>
+      <div
+        className="box"
+        onClick={async () => {
+          await OpenFolder(FolderPath);
+          PickWinner();
+        }}
+      >
         <span class="name">[{Name?.slice(0, 50)}]</span>
         <span class="path">{FolderPath}</span>
       </div>
