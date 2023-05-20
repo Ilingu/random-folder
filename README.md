@@ -10,7 +10,7 @@ This app was made thanks to [`Wails`](https://wails.io/) which is a **lightweigh
 I've used [`svelte`](https://svelte.dev/) for the FrontEnd
 
 > PS: Actually this is the 2nd version of this app; the first one was made with the framework [tauri](https://tauri.app/) _(which is the rust equivalent of wails)_ and [preact](https://preactjs.com/); I choose to remake it because the 1st version (tauri) is not compiling anymore _(maybe due to the fact that it's an old version, that in the meantime I switched of from window to linux, that I don't even have the same machine anymore; maybe...)_ and I only have the windows executable (I'm on linux now...)
-> The first version can be found in the branches of this repo: [tauri-old](https://github.com/Ilingu/random-folder/tree/dev)
+> The first version can be found in the branches of this repo: [tauri-old](https://github.com/Ilingu/random-folder/tree/tauri-old)
 
 ## Install
 
