@@ -1,0 +1,10 @@
+[package]
+name = "random_folder"
+authors = ["Ilingu"]
+version = "0.1.0"
+edition = "2021"
+description = "Random Folder is an linux app that pick a random subfolder inside of a main folder and allow to see it's images."
+
+[dependencies]
+adw = { version = "0.6.0", package = "libadwaita", features = ["v1_5"] }
+gtk = { version = "0.8.2", package = "gtk4", features = ["v4_14"] }
