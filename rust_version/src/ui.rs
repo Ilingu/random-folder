@@ -1,22 +1,23 @@
 use std::rc::Rc;
 use std::sync::Mutex;
 
-use adw::prelude::*;
-
-use adw::{ActionRow, Application, ApplicationWindow, HeaderBar};
-use gtk::{Box, ListBox, Orientation, SelectionMode};
+use gtk::prelude::*;
+use gtk::Application;
 
 use crate::backend::AppBackend;
+use crate::window::Window;
 
 pub fn build_ui(app: &Application, backend: Rc<Mutex<AppBackend>>) {
+    let window = Window::new(app);
+    window.present();
+}
+
+/*
+fn build_ui_old(app: &Application, backend: Rc<Mutex<AppBackend>>) {
     // Markup
     let choose_folder_btn = ActionRow::builder()
         .activatable(true)
         .title("Choose folder")
-        .build();
-    let print_btn = ActionRow::builder()
-        .activatable(true)
-        .title("Print backend")
         .build();
 
     // Assemblage
@@ -30,7 +31,6 @@ pub fn build_ui(app: &Application, backend: Rc<Mutex<AppBackend>>) {
         .css_classes(vec![String::from("boxed-list")])
         .build();
     list.append(&choose_folder_btn);
-    list.append(&print_btn);
 
     // Combine the content in a box
     let content = Box::new(Orientation::Vertical, 0);
@@ -54,5 +54,5 @@ pub fn build_ui(app: &Application, backend: Rc<Mutex<AppBackend>>) {
     // events
     let bec = Rc::clone(&backend);
     choose_folder_btn.connect_activated(move |_| AppBackend::load(bec.clone(), Rc::clone(&window)));
-    print_btn.connect_activated(move |_| println!("{backend:?}"));
 }
+*/

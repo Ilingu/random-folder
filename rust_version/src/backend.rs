@@ -1,6 +1,7 @@
 use std::{rc::Rc, sync::Mutex};
 
-use adw::{prelude::FileExt, Toast, ToastOverlay};
+// use adw::{prelude::FileExt, Toast, ToastOverlay};
+use gtk::prelude::*;
 use gtk::{
     gio::{self, Cancellable},
     glib::{self, object::IsA},
