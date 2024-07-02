@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct AppPreferences {
     pub liked_folders: Vec<String>,
 }
@@ -23,7 +23,7 @@ impl AppPreferences {
     fn get_config_file_path() -> Result<PathBuf, ()> {
         let mut config_path = dirs::config_dir().ok_or(())?;
 
-        config_path.push("nfsw_manager");
+        config_path.push("wfns_manager");
         fs::create_dir_all(&config_path).map_err(|_| ())?;
 
         config_path.push("liked_folders");
@@ -42,8 +42,8 @@ impl AppPreferences {
         }
     }
 
-    pub fn set(new_pref: Self) -> Result<(), ()> {
+    pub fn save(&self) -> Result<(), ()> {
         let config_file_path = Self::get_config_file_path()?;
-        fs::write(config_file_path, new_pref.liked_folders.join("\n")).map_err(|_| ())
+        fs::write(config_file_path, self.liked_folders.join("\n")).map_err(|_| ())
     }
 }
