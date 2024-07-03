@@ -1,11 +1,12 @@
 use std::{
+    collections::HashSet,
     fs::{self, File},
     path::{Path, PathBuf},
 };
 
 #[derive(Debug, Default)]
 pub struct AppPreferences {
-    pub liked_folders: Vec<String>,
+    pub favs_folders: HashSet<String>,
 }
 
 /// Simple macro to return default when error (can be seen as an enhance '?')
@@ -36,14 +37,26 @@ impl AppPreferences {
 
     pub fn load() -> Self {
         let config_file_path = tod!(Self::get_config_file_path());
-        let bytes = tod!(fs::read_to_string(config_file_path));
-        Self {
-            liked_folders: bytes.lines().map(|s| s.to_string()).collect::<Vec<_>>(),
+        let datas = tod!(fs::read_to_string(config_file_path));
+        let favs_folders = datas.lines().map(|s| s.to_string()).collect::<Vec<_>>();
+        match favs_folders.is_empty() {
+            true => Self::default(),
+            false => Self {
+                favs_folders: HashSet::from_iter(favs_folders),
+            },
         }
     }
 
     pub fn save(&self) -> Result<(), ()> {
         let config_file_path = Self::get_config_file_path()?;
-        fs::write(config_file_path, self.liked_folders.join("\n")).map_err(|_| ())
+        fs::write(
+            config_file_path,
+            self.favs_folders
+                .clone()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .map_err(|_| ())
     }
 }

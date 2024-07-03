@@ -1,3 +1,3 @@
 pub mod about;
-// pub mod favs_folders;
+pub mod fav_folder;
 pub mod header;

@@ -4,12 +4,23 @@ use relm4::{
     adw, gtk, ComponentParts, ComponentSender, SimpleComponent,
 };
 
-pub struct HeaderModel;
+pub struct HeaderModel {
+    bookmarked: bool,
+    show_bookmark_btn: bool,
+}
+
+#[derive(Debug)]
+pub enum HeaderInput {
+    ShowBookmarkBtn(bool),
+    ToogleBookmark,
+    RollbackBookmark,
+}
 
 #[derive(Debug)]
 pub enum HeaderOutput {
     About,
     NewDir,
+    SetBookmarked(bool),
 }
 
 relm4::new_action_group!(HeaderMenuActionGroup, "win");
@@ -20,20 +31,34 @@ relm4::new_stateless_action!(OpenDir, AloneActionGroup, "open_dir");
 
 #[relm4::component(pub)]
 impl SimpleComponent for HeaderModel {
-    type Init = ();
-    type Input = ();
+    type Init = (bool, bool);
+    type Input = HeaderInput;
     type Output = HeaderOutput;
 
     view! {
         #[root]
         header = adw::HeaderBar {
-            pack_start =  & gtk::Button{
+            pack_start = &gtk::Button{
                 set_margin_start: 5,
                 adw::ButtonContent {
                     set_label: "Open",
                     set_icon_name: "folder-open-symbolic",
                 },
                 connect_clicked[sender] => move |_| { let _ = sender.output(HeaderOutput::NewDir); },
+            },
+            pack_start = &gtk::Button{
+                set_margin_start: 5,
+                #[watch]
+                set_visible: model.show_bookmark_btn,
+
+                adw::ButtonContent {
+                    #[watch]
+                    set_icon_name: match model.bookmarked {
+                        true => "bookmark-filled-symbolic",
+                        false => "bookmark-outline-symbolic",
+                    },
+                },
+                connect_clicked => HeaderInput::ToogleBookmark,
             },
             pack_end = &gtk::MenuButton {
                 set_icon_name: "open-menu-symbolic",
@@ -50,11 +75,14 @@ impl SimpleComponent for HeaderModel {
     }
 
     fn init(
-        _: Self::Init,
+        (bookmarked, show): Self::Init,
         root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
-        let model = HeaderModel;
+        let model = HeaderModel {
+            bookmarked,
+            show_bookmark_btn: show,
+        };
         let widgets = view_output!();
 
         // register actions for menu
@@ -85,5 +113,16 @@ impl SimpleComponent for HeaderModel {
         }
 
         ComponentParts { model, widgets }
+    }
+
+    fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
+        match message {
+            HeaderInput::ShowBookmarkBtn(show) => self.show_bookmark_btn = show,
+            HeaderInput::ToogleBookmark => {
+                self.bookmarked = !self.bookmarked;
+                let _ = sender.output(HeaderOutput::SetBookmarked(self.bookmarked));
+            }
+            HeaderInput::RollbackBookmark => self.bookmarked = !self.bookmarked,
+        }
     }
 }

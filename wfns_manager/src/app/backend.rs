@@ -9,7 +9,7 @@ macro_rules! tsuts {
     };
 }
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct SubFolder {
     pub name: String,
     root_path: String,
@@ -67,7 +67,7 @@ impl SubFolder {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub struct AppFolderManager {
     pub root_path: String,
     pub subfolders: Vec<SubFolder>,
@@ -75,13 +75,12 @@ pub struct AppFolderManager {
 }
 
 impl AppFolderManager {
-    pub fn set_folder(&mut self, root_path: String) -> bool {
-        self.subfolders = match Self::scan_subfolder(&root_path) {
-            Ok(sf) => sf,
-            Err(_) => return false,
-        };
-        self.root_path = root_path;
-        true
+    pub fn set_folder(root_path: String) -> Result<Self, ()> {
+        Ok(Self {
+            subfolders: Self::scan_subfolder(&root_path).map_err(|_| ())?,
+            root_path,
+            history: vec![],
+        })
     }
 
     fn scan_subfolder(root_folder: &str) -> Result<Vec<SubFolder>, Box<dyn Error>> {

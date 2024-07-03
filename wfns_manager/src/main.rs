@@ -2,7 +2,7 @@ mod app;
 mod components;
 mod config;
 
-use app::{pref_backend::AppPreferences, AppModel};
+use app::{preferences::AppPreferences, AppModel};
 use config::APP_ID;
 use relm4::{
     gtk::{self, gdk, gio, glib},
