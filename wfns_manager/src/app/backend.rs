@@ -96,13 +96,19 @@ impl AppFolderManager {
 
     pub fn choose(&mut self) -> SubFolder {
         let mut rng = WyRand::new();
-        let index = rng.generate_range(0..=self.subfolders.len());
-        self.subfolders.swap_remove(index) // don't care about ordering
+        let index = rng.generate_range(0..self.subfolders.len());
+        let picked_sf = self.subfolders.swap_remove(index); // don't care about ordering
+
+        self.history.push(picked_sf.clone());
+        picked_sf
     }
 
-    pub fn rollback(&mut self) -> SubFolder {
-        let lastsf = self.history.pop().expect("");
+    pub fn rollback(&mut self) -> Option<SubFolder> {
+        let lastsf = match self.history.pop() {
+            Some(sf) => sf,
+            None => return None,
+        };
         self.subfolders.push(lastsf.clone());
-        lastsf
+        Some(lastsf)
     }
 }

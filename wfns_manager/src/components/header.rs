@@ -1,6 +1,6 @@
 use adw::prelude::*;
 use relm4::{
-    actions::{AccelsPlus, RelmAction, RelmActionGroup},
+    actions::{RelmAction, RelmActionGroup},
     adw, gtk, ComponentParts, ComponentSender, SimpleComponent,
 };
 
@@ -12,22 +12,21 @@ pub struct HeaderModel {
 #[derive(Debug)]
 pub enum HeaderInput {
     ShowBookmarkBtn(bool),
-    ToogleBookmark,
-    RollbackBookmark,
+    ToogleBookmark(bool),
+    SetBookmark(bool),
 }
 
 #[derive(Debug)]
 pub enum HeaderOutput {
     About,
+    Shortcuts,
     NewDir,
     SetBookmarked(bool),
 }
 
 relm4::new_action_group!(HeaderMenuActionGroup, "win");
 relm4::new_stateless_action!(OpenAbout, HeaderMenuActionGroup, "about");
-
-relm4::new_action_group!(AloneActionGroup, "alone");
-relm4::new_stateless_action!(OpenDir, AloneActionGroup, "open_dir");
+relm4::new_stateless_action!(OpenShortcuts, HeaderMenuActionGroup, "shortcuts");
 
 #[relm4::component(pub)]
 impl SimpleComponent for HeaderModel {
@@ -38,7 +37,7 @@ impl SimpleComponent for HeaderModel {
     view! {
         #[root]
         header = adw::HeaderBar {
-            pack_start = &gtk::Button{
+            pack_start = &gtk::Button {
                 set_margin_start: 5,
                 adw::ButtonContent {
                     set_label: "Open",
@@ -46,7 +45,7 @@ impl SimpleComponent for HeaderModel {
                 },
                 connect_clicked[sender] => move |_| { let _ = sender.output(HeaderOutput::NewDir); },
             },
-            pack_start = &gtk::Button{
+            pack_start = &gtk::Button {
                 set_margin_start: 5,
                 #[watch]
                 set_visible: model.show_bookmark_btn,
@@ -54,11 +53,11 @@ impl SimpleComponent for HeaderModel {
                 adw::ButtonContent {
                     #[watch]
                     set_icon_name: match model.bookmarked {
-                        true => "bookmark-filled-symbolic",
-                        false => "bookmark-outline-symbolic",
+                        true => "user-bookmarks-symbolic",
+                        false => "bookmark-new-symbolic",
                     },
                 },
-                connect_clicked => HeaderInput::ToogleBookmark,
+                connect_clicked => HeaderInput::ToogleBookmark(true),
             },
             pack_end = &gtk::MenuButton {
                 set_icon_name: "open-menu-symbolic",
@@ -71,6 +70,7 @@ impl SimpleComponent for HeaderModel {
     menu! {
         main_menu: {
             "About WFNS" => OpenAbout,
+            "Shortcuts" => OpenShortcuts,
         }
     }
 
@@ -92,24 +92,16 @@ impl SimpleComponent for HeaderModel {
                 let _ = about_sender.output(HeaderOutput::About);
             });
 
+            let shortcuts_sender = sender.clone();
+            let action_shortcuts: RelmAction<OpenShortcuts> =
+                RelmAction::new_stateless(move |_| {
+                    let _ = shortcuts_sender.output(HeaderOutput::Shortcuts);
+                });
+
             let mut menu_group = RelmActionGroup::<HeaderMenuActionGroup>::new();
             menu_group.add_action(action_about);
+            menu_group.add_action(action_shortcuts);
             menu_group.register_for_widget(&widgets.header);
-        }
-
-        // register header actions for app
-        {
-            let app = relm4::main_application();
-            app.set_accelerators_for_action::<OpenDir>(&["<primary>O"]);
-
-            let open_sender = sender.clone();
-            let action_open: RelmAction<OpenDir> = RelmAction::new_stateless(move |_| {
-                let _ = open_sender.output(HeaderOutput::NewDir);
-            });
-
-            let mut alone_group = RelmActionGroup::<HeaderMenuActionGroup>::new();
-            alone_group.add_action(action_open);
-            alone_group.register_for_main_application();
         }
 
         ComponentParts { model, widgets }
@@ -118,11 +110,13 @@ impl SimpleComponent for HeaderModel {
     fn update(&mut self, message: Self::Input, sender: ComponentSender<Self>) {
         match message {
             HeaderInput::ShowBookmarkBtn(show) => self.show_bookmark_btn = show,
-            HeaderInput::ToogleBookmark => {
+            HeaderInput::ToogleBookmark(back_to_app) => {
                 self.bookmarked = !self.bookmarked;
-                let _ = sender.output(HeaderOutput::SetBookmarked(self.bookmarked));
+                if back_to_app {
+                    let _ = sender.output(HeaderOutput::SetBookmarked(self.bookmarked));
+                }
             }
-            HeaderInput::RollbackBookmark => self.bookmarked = !self.bookmarked,
+            HeaderInput::SetBookmark(b) => self.bookmarked = b,
         }
     }
 }

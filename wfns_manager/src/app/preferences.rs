@@ -27,7 +27,7 @@ impl AppPreferences {
         config_path.push("wfns_manager");
         fs::create_dir_all(&config_path).map_err(|_| ())?;
 
-        config_path.push("liked_folders");
+        config_path.push("favs_folders");
         if !Path::exists(&config_path) {
             File::create(&config_path).map_err(|_| ())?;
         }

@@ -4,16 +4,20 @@ pub mod preferences;
 use std::time::Duration;
 
 use adw::prelude::*;
-use backend::AppFolderManager;
+use backend::{AppFolderManager, SubFolder};
 use preferences::AppPreferences;
 use relm4::{
-    abstractions::Toaster, adw, factory::FactoryVecDeque, gtk, Component, ComponentController,
-    ComponentParts, ComponentSender, Controller, RelmWidgetExt, SimpleComponent,
+    abstractions::Toaster,
+    actions::{AccelsPlus, RelmAction, RelmActionGroup},
+    adw,
+    factory::FactoryVecDeque,
+    gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller,
+    RelmWidgetExt, SimpleComponent,
 };
 
 use crate::components::{
     about::{AboutInput, AboutPageModel},
-    fav_folder::FavFolderModel,
+    fav_folder::{FavFolderModel, FavFolderOutput},
     header::{HeaderInput, HeaderModel, HeaderOutput},
 };
 
@@ -26,16 +30,26 @@ macro_rules! push_toast {
     };
 }
 
+// actions
+relm4::new_action_group!(ShortcutsActionGroup, "app_shortcuts");
+relm4::new_stateless_action!(NextSFAction, ShortcutsActionGroup, "next");
+relm4::new_stateless_action!(PrevSFAction, ShortcutsActionGroup, "prev");
+relm4::new_stateless_action!(OpenDir, ShortcutsActionGroup, "open_dir");
+
+// Model
+
 #[derive(Debug)]
-enum AppPages {
+pub enum AppPages {
     ChooseFolder,
     ViewFolder,
 }
 
 pub struct AppModel {
     prefs: AppPreferences,
-    curr_folder: Option<AppFolderManager>,
     current_page: AppPages,
+
+    curr_folder: Option<AppFolderManager>,
+    curr_sf: Option<SubFolder>,
 
     // factories
     favs_folders: FactoryVecDeque<FavFolderModel>,
@@ -44,18 +58,23 @@ pub struct AppModel {
     header: Controller<HeaderModel>,
     about_page: Controller<AboutPageModel>,
     toaster: Toaster,
+    shortcuts_window: gtk::ShortcutsWindow,
 }
 
 #[derive(Debug)]
 pub enum AppInput {
     OpenAbout,
+    OpenShortcuts,
     ChooseFolder,
     AddFolder(String),
+    NextSF,
+    PrevSF,
     PushToast((String, Duration)),
     SwitchPage(AppPages),
     SetBookmarked(bool),
 }
 
+// component
 #[relm4::component(pub)]
 impl SimpleComponent for AppModel {
     type Input = AppInput;
@@ -80,18 +99,22 @@ impl SimpleComponent for AppModel {
                     gtk::Box {
                         set_orientation: gtk::Orientation::Vertical,
                         set_margin_all: 5,
-                        set_valign: gtk::Align::Center,
+                        set_hexpand: true,
+                        set_vexpand: true,
 
                         // Here lie the app UI code
                         gtk::Stack {
                             set_transition_type: gtk::StackTransitionType::SlideLeftRight,
                             set_transition_duration: 500,
+                            set_hexpand: true,
+                            set_vexpand: true,
 
                             #[watch]
                             set_visible_child_name: &format!("{:?}", model.current_page).to_lowercase(),
 
                             add_named[Some("choosefolder")] = &gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
+                                set_valign: gtk::Align::Center,
 
                                 adw::StatusPage {
                                     set_icon_name: Some("logo"),
@@ -120,14 +143,34 @@ impl SimpleComponent for AppModel {
                                         set_title: "Favorites folders",
                                         set_subtitle: "Click to expend",
                                         set_enable_expansion: true,
+                                        set_hexpand: true,
                                     },
                                 }
-
                             },
 
-                            add_named[Some("viewfolder")]  = &gtk::Box {
+                            add_named[Some("viewfolder")] = &gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
-                                set_spacing: 5,
+                                set_halign: gtk::Align::Center,
+                                set_valign: gtk::Align::Start,
+                                // layout with a header card with thumbnail and in the side action button and bellow the images
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_css_classes: &["view", "card"],
+                                    set_size_request: (1000, 500),
+                                    set_spacing: 10,
+
+                                    gtk::Image {
+                                        set_valign:gtk::Align::Center,
+                                        #[watch]
+                                        set_from_file: match &model.curr_sf {
+                                            Some(f) if f.thumbnail.is_some() =>
+                                                Some(format!("{}/{}", f.get_path(), f.thumbnail.as_ref().unwrap())),
+                                            _ => None::<String>,
+                                        },
+                                        set_size_request: (100, 300),
+                                        inline_css: "border: 1px solid ",
+                                    }
+                                }
                             }
                         }
                     }
@@ -146,6 +189,7 @@ impl SimpleComponent for AppModel {
             .launch((false, false))
             .forward(sender.input_sender(), |msg| match msg {
                 HeaderOutput::About => AppInput::OpenAbout,
+                HeaderOutput::Shortcuts => AppInput::OpenShortcuts,
                 HeaderOutput::NewDir => AppInput::ChooseFolder,
                 HeaderOutput::SetBookmarked(b) => AppInput::SetBookmarked(b),
             });
@@ -153,11 +197,48 @@ impl SimpleComponent for AppModel {
             .transient_for(&root)
             .launch(true)
             .detach();
+        let shortcuts_window = {
+            let shortcuts_window = gtk::ShortcutsWindow::builder()
+                .modal(true)
+                .transient_for(&root)
+                .width_request(800)
+                .height_request(500)
+                .build();
+            // Add sections, groups, and shortcuts
+            let section = gtk::ShortcutsSection::builder()
+                .title("General")
+                .valign(gtk::Align::Start)
+                .build();
+            let group = gtk::ShortcutsGroup::builder().title("Application").build();
+
+            let open = gtk::ShortcutsShortcut::builder()
+                .accelerator("<ctrl>o")
+                .title("Open new folder")
+                .build();
+            let next = gtk::ShortcutsShortcut::builder()
+                .accelerator("<ctrl>n")
+                .title("Pick next subfolder")
+                .build();
+            let prev = gtk::ShortcutsShortcut::builder()
+                .accelerator("<ctrl>p")
+                .title("Rollback to last subfolder")
+                .build();
+            group.append(&open);
+            group.append(&next);
+            group.append(&prev);
+
+            section.append(&group);
+            shortcuts_window.set_child(Some(&section));
+            shortcuts_window.set_hide_on_close(true);
+            shortcuts_window
+        };
 
         // factories
         let mut favs_folders = FactoryVecDeque::builder()
             .launch(adw::ExpanderRow::default())
-            .detach();
+            .forward(sender.input_sender(), |msg| match msg {
+                FavFolderOutput::ChoseFavFolder(path) => AppInput::AddFolder(path),
+            });
         for fpath in &prefs.favs_folders {
             favs_folders.guard().push_back(fpath.to_owned()); // set init value
         }
@@ -165,13 +246,16 @@ impl SimpleComponent for AppModel {
         // define default model
         let model = AppModel {
             prefs,
-            curr_folder: None,
             current_page: AppPages::ChooseFolder,
-            favs_folders,
+
+            curr_folder: None,
+            curr_sf: None,
 
             header,
             about_page,
             toaster: Toaster::default(),
+            favs_folders,
+            shortcuts_window,
         };
 
         // inject to view!
@@ -179,6 +263,33 @@ impl SimpleComponent for AppModel {
         let favs_folders_factory = model.favs_folders.widget();
 
         let widgets = view_output!();
+        // todo: https://docs.gtk.org/gtk4/class.ShortcutsWindow.html
+        // actions
+        {
+            let app = relm4::main_application();
+            app.set_accelerators_for_action::<NextSFAction>(&["<ctrl>n"]);
+            app.set_accelerators_for_action::<PrevSFAction>(&["<ctrl>p"]);
+            app.set_accelerators_for_action::<OpenDir>(&["<ctrl>o"]);
+
+            let next_sender = sender.clone();
+            let action_next: RelmAction<NextSFAction> =
+                RelmAction::new_stateless(move |_| next_sender.input(AppInput::NextSF));
+
+            let prev_sender = sender.clone();
+            let action_prev: RelmAction<PrevSFAction> =
+                RelmAction::new_stateless(move |_| prev_sender.input(AppInput::PrevSF));
+
+            let open_sender = sender.clone();
+            let action_open: RelmAction<OpenDir> =
+                RelmAction::new_stateless(move |_| open_sender.input(AppInput::ChooseFolder));
+
+            let mut alone_group = RelmActionGroup::<ShortcutsActionGroup>::new();
+            alone_group.add_action(action_next);
+            alone_group.add_action(action_prev);
+            alone_group.add_action(action_open);
+            alone_group.register_for_widget(&widgets.main_window);
+        }
+
         ComponentParts { model, widgets }
     }
 
@@ -188,6 +299,9 @@ impl SimpleComponent for AppModel {
                 if self.about_page.sender().send(AboutInput::Show).is_err() {
                     push_toast!("Failed to open about page", 2, sender);
                 }
+            }
+            AppInput::OpenShortcuts => {
+                self.shortcuts_window.present();
             }
             AppInput::ChooseFolder => {
                 let dialog = gtk::FileDialog::builder()
@@ -226,13 +340,33 @@ impl SimpleComponent for AppModel {
                         )
                     }
                 };
-                self.curr_folder = Some(folder);
-                println!("{:?}", self.curr_folder);
+                println!("{folder:?}");
                 let _ = self
                     .header
                     .sender()
                     .send(HeaderInput::ShowBookmarkBtn(true));
+                let _ = self.header.sender().send(HeaderInput::SetBookmark(
+                    self.prefs
+                        .favs_folders
+                        .iter()
+                        .find(|n| n == &&folder.root_path)
+                        .map(|_| true)
+                        .unwrap_or(false),
+                ));
+                self.curr_folder = Some(folder);
+
+                sender.input(AppInput::NextSF); // before UI update to prevent user to see "blank" screen
                 sender.input(AppInput::SwitchPage(AppPages::ViewFolder));
+            }
+            AppInput::NextSF => {
+                if let Some(folder) = self.curr_folder.as_mut() {
+                    self.curr_sf = Some(folder.choose());
+                }
+            }
+            AppInput::PrevSF => {
+                if let Some(folder) = self.curr_folder.as_mut() {
+                    self.curr_sf = Some(folder.rollback().unwrap_or_else(|| folder.choose()));
+                }
             }
             AppInput::SetBookmarked(bookmarked) => {
                 if let Some(folder) = &self.curr_folder {
@@ -241,14 +375,20 @@ impl SimpleComponent for AppModel {
                             true => push_toast!("Successfully bookmarked", 2, sender),
                             false => {
                                 push_toast!("Failed to bookmark folder", 2, sender);
-                                let _ = self.header.sender().send(HeaderInput::RollbackBookmark);
+                                let _ = self
+                                    .header
+                                    .sender()
+                                    .send(HeaderInput::ToogleBookmark(false));
                             }
                         },
                         false => match self.prefs.favs_folders.remove(&folder.root_path) {
                             true => push_toast!("Successfully unbookmarked", 2, sender),
                             false => {
                                 push_toast!("Failed to unbookmark folder", 2, sender);
-                                let _ = self.header.sender().send(HeaderInput::RollbackBookmark);
+                                let _ = self
+                                    .header
+                                    .sender()
+                                    .send(HeaderInput::ToogleBookmark(false));
                             }
                         },
                     }
