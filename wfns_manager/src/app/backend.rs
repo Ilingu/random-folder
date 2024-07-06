@@ -1,4 +1,4 @@
-use std::{error::Error, fs};
+use std::fs;
 
 use file_format::{FileFormat, Kind};
 use nanorand::{Rng, WyRand};
@@ -26,10 +26,16 @@ impl SubFolder {
         }
     }
 
+    /// reveal subfolder in default file explorer
     pub fn open_dir(&self) -> bool {
-        opener::reveal(self.get_path()).is_ok()
+        if let Some(thumbnail) = &self.thumbnail {
+            opener::reveal(format!("{}/{}", self.get_path(), thumbnail)).is_ok()
+        } else {
+            opener::reveal(self.get_path()).is_ok()
+        }
     }
 
+    /// open first image directly in eog
     pub fn open_image(&self) -> bool {
         if let Some(thumbnail) = &self.thumbnail {
             opener::open(format!("{}/{}", self.get_path(), thumbnail)).is_ok()
@@ -38,30 +44,26 @@ impl SubFolder {
         }
     }
 
-    pub fn get_images(&self) -> Result<Vec<String>, Box<dyn Error>> {
-        let mut images = vec![];
-        let mut entries = fs::read_dir(self.get_path())?;
-        while let Some(Ok(entry)) = entries.next() {
-            if entry.file_type().is_ok() && entry.file_type().unwrap().is_file() {
-                images.push(tsuts!(entry.file_name()));
-            }
-        }
-        Ok(images)
-    }
-
     fn get_thumbnail(subpath: &str) -> Result<String, ()> {
         let mut entries = fs::read_dir(subpath).map_err(|_| ())?;
         while let Some(Ok(entry)) = entries.next() {
-            if entry.file_type().is_ok() && entry.file_type().unwrap().is_file() {
-                let name = tsuts!(entry.file_name());
-                let path = format!("{}/{name}", subpath);
-                if FileFormat::from_file(path).map_err(|_| ())?.kind() == Kind::Image {
-                    return Ok(name);
-                }
+            let name = tsuts!(entry.file_name());
+            let without_ext = match name.split('.').next() {
+                Some(n) => n,
+                None => continue,
+            };
+            // fastest/cheapest way to find the first image, if not accurate, get all images and sort to find first one...
+            if [".jpg", ".png", ".gif"]
+                .iter()
+                .any(|ext| name.ends_with(ext))
+                && ["1", "01", "001", "0001"].iter().any(|x| &without_ext == x)
+            {
+                return Ok(name);
             }
         }
         Err(())
     }
+
     pub fn get_path(&self) -> String {
         format!("{}/{}", self.root_path, self.name)
     }
@@ -72,43 +74,68 @@ pub struct AppFolderManager {
     pub root_path: String,
     pub subfolders: Vec<SubFolder>,
     pub history: Vec<SubFolder>,
+    pub curr_sf: SubFolder,
 }
 
 impl AppFolderManager {
     pub fn set_folder(root_path: String) -> Result<Self, ()> {
+        let res = Self::scan_subfolder(&root_path).map_err(|_| ())?;
         Ok(Self {
-            subfolders: Self::scan_subfolder(&root_path).map_err(|_| ())?,
+            curr_sf: res[0].clone(),
+            subfolders: res,
             root_path,
             history: vec![],
         })
     }
 
-    fn scan_subfolder(root_folder: &str) -> Result<Vec<SubFolder>, Box<dyn Error>> {
+    fn scan_subfolder(root_folder: &str) -> Result<Vec<SubFolder>, ()> {
         let mut subfolders = Vec::new();
-        let mut entries = fs::read_dir(root_folder)?;
+        let mut entries = fs::read_dir(root_folder).map_err(|_| ())?;
         while let Some(Ok(entry)) = entries.next() {
             if entry.file_type().is_ok() && entry.file_type().unwrap().is_dir() {
                 subfolders.push(SubFolder::new(&tsuts!(entry.file_name()), root_folder));
             }
         }
+        if subfolders.is_empty() {
+            return Err(());
+        }
         Ok(subfolders)
     }
 
-    pub fn choose(&mut self) -> SubFolder {
+    pub fn reset(&mut self) -> bool {
+        match Self::set_folder(self.root_path.clone()) {
+            Ok(f) => {
+                *self = f;
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    pub fn choose(&mut self, write: bool) -> Result<SubFolder, ()> {
+        if self.subfolders.is_empty() && !self.reset() {
+            return Err(()); // if reset ok continue to choose otherwise error and in the app return to placeholder page
+        }
+        if write {
+            self.history.push(self.curr_sf.clone());
+        }
+
         let mut rng = WyRand::new();
         let index = rng.generate_range(0..self.subfolders.len());
-        let picked_sf = self.subfolders.swap_remove(index); // don't care about ordering
+        let picked_sf = self.subfolders[index].clone();
 
-        self.history.push(picked_sf.clone());
-        picked_sf
+        if write {
+            self.subfolders.swap_remove(index); // don't care about ordering
+        }
+
+        Ok(picked_sf)
     }
 
     pub fn rollback(&mut self) -> Option<SubFolder> {
         let lastsf = match self.history.pop() {
             Some(sf) => sf,
-            None => return None,
+            None => return self.choose(false).ok(),
         };
-        self.subfolders.push(lastsf.clone());
         Some(lastsf)
     }
 }

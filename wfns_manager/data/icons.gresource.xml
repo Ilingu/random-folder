@@ -3,5 +3,6 @@
     <gresource prefix="com/ilingu/icons/">
         <file preprocess="xml-stripblanks" alias="logo.svg">icons/logo.svg</file>
         <file preprocess="xml-stripblanks" alias="check-mini.svg">icons/check-mini.svg</file>
+        <file preprocess="xml-stripblanks" alias="eye.svg">icons/eye.svg</file>
     </gresource>
 </gresources>

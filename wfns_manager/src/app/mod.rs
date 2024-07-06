@@ -1,25 +1,33 @@
+mod actions;
 mod backend;
 pub mod preferences;
 
 use std::time::Duration;
 
 use adw::prelude::*;
-use backend::{AppFolderManager, SubFolder};
+use backend::AppFolderManager;
 use preferences::AppPreferences;
 use relm4::{
     abstractions::Toaster,
     actions::{AccelsPlus, RelmAction, RelmActionGroup},
     adw,
     factory::FactoryVecDeque,
-    gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller,
-    RelmWidgetExt, SimpleComponent,
+    gtk::{self, EventControllerMotion},
+    Component, ComponentController, ComponentParts, ComponentSender, Controller, RelmWidgetExt,
+    SimpleComponent,
 };
 
-use crate::components::{
-    about::{AboutInput, AboutPageModel},
-    fav_folder::{FavFolderModel, FavFolderOutput},
-    header::{HeaderInput, HeaderModel, HeaderOutput},
+use crate::{
+    components::{
+        about::{AboutInput, AboutPageModel},
+        fav_folder::{FavFolderModel, FavFolderOutput},
+        header::{HeaderInput, HeaderModel, HeaderOutput},
+        shortcuts::build_shortcuts_window,
+    },
+    init_app_actions,
 };
+
+// macro
 
 macro_rules! push_toast {
     ($e:expr, $f:expr, $sender:expr) => {
@@ -34,7 +42,9 @@ macro_rules! push_toast {
 relm4::new_action_group!(ShortcutsActionGroup, "app_shortcuts");
 relm4::new_stateless_action!(NextSFAction, ShortcutsActionGroup, "next");
 relm4::new_stateless_action!(PrevSFAction, ShortcutsActionGroup, "prev");
-relm4::new_stateless_action!(OpenDir, ShortcutsActionGroup, "open_dir");
+relm4::new_stateless_action!(OpenNewDir, ShortcutsActionGroup, "open_new_dir");
+relm4::new_stateless_action!(OpenSFImg, ShortcutsActionGroup, "open_sf_img");
+relm4::new_stateless_action!(OpenSF, ShortcutsActionGroup, "open_sf");
 
 // Model
 
@@ -47,14 +57,13 @@ pub enum AppPages {
 pub struct AppModel {
     prefs: AppPreferences,
     current_page: AppPages,
-
     curr_folder: Option<AppFolderManager>,
-    curr_sf: Option<SubFolder>,
 
     // factories
     favs_folders: FactoryVecDeque<FavFolderModel>,
 
     // components
+    title_popover: gtk::Popover,
     header: Controller<HeaderModel>,
     about_page: Controller<AboutPageModel>,
     toaster: Toaster,
@@ -69,9 +78,12 @@ pub enum AppInput {
     AddFolder(String),
     NextSF,
     PrevSF,
+    OpenSFImg,
+    OpenSF,
     PushToast((String, Duration)),
     SwitchPage(AppPages),
     SetBookmarked(bool),
+    TitlePopup(bool),
 }
 
 // component
@@ -151,24 +163,81 @@ impl SimpleComponent for AppModel {
                             add_named[Some("viewfolder")] = &gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
                                 set_halign: gtk::Align::Center,
-                                set_valign: gtk::Align::Start,
+                                set_valign: gtk::Align::Center,
                                 // layout with a header card with thumbnail and in the side action button and bellow the images
                                 gtk::Box {
-                                    set_orientation: gtk::Orientation::Horizontal,
+                                    set_orientation: gtk::Orientation::Vertical,
                                     set_css_classes: &["view", "card"],
-                                    set_size_request: (1000, 500),
                                     set_spacing: 10,
+                                    set_margin_top: 20,
 
                                     gtk::Image {
-                                        set_valign:gtk::Align::Center,
+                                        set_pixel_size: 600,
+                                        set_size_request: (400, 600),
+                                        set_margin_horizontal: 10,
+                                        set_margin_top: 10,
+
                                         #[watch]
-                                        set_from_file: match &model.curr_sf {
-                                            Some(f) if f.thumbnail.is_some() =>
-                                                Some(format!("{}/{}", f.get_path(), f.thumbnail.as_ref().unwrap())),
+                                        set_from_file: match &model.curr_folder {
+                                            Some(f) if f.curr_sf.thumbnail.is_some() =>
+                                                Some(format!("{}/{}", f.curr_sf.get_path(), f.curr_sf.thumbnail.as_ref().unwrap())),
                                             _ => None::<String>,
                                         },
-                                        set_size_request: (100, 300),
-                                        inline_css: "border: 1px solid ",
+                                    },
+
+                                    gtk::Label {
+                                        #[watch]
+                                        set_label: model.curr_folder.as_ref().map(|f| &f.curr_sf.name).unwrap_or(&String::new()),
+                                        add_css_class: "title-2",
+                                        set_margin_horizontal: 10,
+                                        set_ellipsize: gtk::pango::EllipsizeMode::End,
+                                        set_max_width_chars: 50,
+
+                                        add_controller: {
+                                            let motion_controller = EventControllerMotion::new();
+
+                                            let sender_enter = sender.clone();
+                                            motion_controller.connect_enter(move |_,_,_| sender_enter.input(AppInput::TitlePopup(true)));
+
+                                            let sender_leave = sender.clone();
+                                            motion_controller.connect_leave(move |_| sender_leave.input(AppInput::TitlePopup(false)));
+
+                                            motion_controller
+                                        },
+                                    },
+
+                                    #[name = "popover"]
+                                    gtk::Popover {
+                                        set_position: gtk::PositionType::Bottom,
+                                        set_autohide: false,
+
+                                        gtk::Label {
+                                            #[watch]
+                                            set_label: model.curr_folder.as_ref().map(|f| &f.curr_sf.name).unwrap_or(&String::new()),
+                                            set_margin_all: 12,
+                                        }
+                                    },
+
+                                    gtk::Box {
+                                        set_orientation: gtk::Orientation::Horizontal,
+                                        set_halign: gtk::Align::Center,
+                                        set_spacing: 10,
+
+                                        gtk::Button {
+                                            set_css_classes: &["pill", "suggested-action"],
+                                            set_icon_name: "media-playlist-shuffle-symbolic",
+                                            connect_clicked => AppInput::NextSF,
+                                        },
+                                        gtk::Button {
+                                            set_css_classes: &["pill", "suggested-action"],
+                                            set_icon_name: "media-seek-backward-symbolic",
+                                            connect_clicked => AppInput::PrevSF,
+                                        },
+                                        gtk::Button {
+                                            set_css_classes: &["pill", "suggested-action"],
+                                            set_icon_name: "eye",
+                                            connect_clicked => AppInput::OpenSFImg,
+                                        },
                                     }
                                 }
                             }
@@ -197,41 +266,7 @@ impl SimpleComponent for AppModel {
             .transient_for(&root)
             .launch(true)
             .detach();
-        let shortcuts_window = {
-            let shortcuts_window = gtk::ShortcutsWindow::builder()
-                .modal(true)
-                .transient_for(&root)
-                .width_request(800)
-                .height_request(500)
-                .build();
-            // Add sections, groups, and shortcuts
-            let section = gtk::ShortcutsSection::builder()
-                .title("General")
-                .valign(gtk::Align::Start)
-                .build();
-            let group = gtk::ShortcutsGroup::builder().title("Application").build();
-
-            let open = gtk::ShortcutsShortcut::builder()
-                .accelerator("<ctrl>o")
-                .title("Open new folder")
-                .build();
-            let next = gtk::ShortcutsShortcut::builder()
-                .accelerator("<ctrl>n")
-                .title("Pick next subfolder")
-                .build();
-            let prev = gtk::ShortcutsShortcut::builder()
-                .accelerator("<ctrl>p")
-                .title("Rollback to last subfolder")
-                .build();
-            group.append(&open);
-            group.append(&next);
-            group.append(&prev);
-
-            section.append(&group);
-            shortcuts_window.set_child(Some(&section));
-            shortcuts_window.set_hide_on_close(true);
-            shortcuts_window
-        };
+        let shortcuts_window = build_shortcuts_window(&root);
 
         // factories
         let mut favs_folders = FactoryVecDeque::builder()
@@ -244,13 +279,13 @@ impl SimpleComponent for AppModel {
         }
 
         // define default model
-        let model = AppModel {
+        let mut model = AppModel {
             prefs,
             current_page: AppPages::ChooseFolder,
-
             curr_folder: None,
-            curr_sf: None,
 
+            // components
+            title_popover: gtk::Popover::default(),
             header,
             about_page,
             toaster: Toaster::default(),
@@ -263,32 +298,9 @@ impl SimpleComponent for AppModel {
         let favs_folders_factory = model.favs_folders.widget();
 
         let widgets = view_output!();
-        // todo: https://docs.gtk.org/gtk4/class.ShortcutsWindow.html
+        model.title_popover = widgets.popover.clone();
         // actions
-        {
-            let app = relm4::main_application();
-            app.set_accelerators_for_action::<NextSFAction>(&["<ctrl>n"]);
-            app.set_accelerators_for_action::<PrevSFAction>(&["<ctrl>p"]);
-            app.set_accelerators_for_action::<OpenDir>(&["<ctrl>o"]);
-
-            let next_sender = sender.clone();
-            let action_next: RelmAction<NextSFAction> =
-                RelmAction::new_stateless(move |_| next_sender.input(AppInput::NextSF));
-
-            let prev_sender = sender.clone();
-            let action_prev: RelmAction<PrevSFAction> =
-                RelmAction::new_stateless(move |_| prev_sender.input(AppInput::PrevSF));
-
-            let open_sender = sender.clone();
-            let action_open: RelmAction<OpenDir> =
-                RelmAction::new_stateless(move |_| open_sender.input(AppInput::ChooseFolder));
-
-            let mut alone_group = RelmActionGroup::<ShortcutsActionGroup>::new();
-            alone_group.add_action(action_next);
-            alone_group.add_action(action_prev);
-            alone_group.add_action(action_open);
-            alone_group.register_for_widget(&widgets.main_window);
-        }
+        init_app_actions!(sender, widgets);
 
         ComponentParts { model, widgets }
     }
@@ -300,9 +312,7 @@ impl SimpleComponent for AppModel {
                     push_toast!("Failed to open about page", 2, sender);
                 }
             }
-            AppInput::OpenShortcuts => {
-                self.shortcuts_window.present();
-            }
+            AppInput::OpenShortcuts => self.shortcuts_window.present(),
             AppInput::ChooseFolder => {
                 let dialog = gtk::FileDialog::builder()
                     .title("Choose folder")
@@ -340,7 +350,6 @@ impl SimpleComponent for AppModel {
                         )
                     }
                 };
-                println!("{folder:?}");
                 let _ = self
                     .header
                     .sender()
@@ -360,14 +369,40 @@ impl SimpleComponent for AppModel {
             }
             AppInput::NextSF => {
                 if let Some(folder) = self.curr_folder.as_mut() {
-                    self.curr_sf = Some(folder.choose());
+                    match folder.choose(true) {
+                        Ok(sf) => folder.curr_sf = sf,
+                        Err(_) => {
+                            sender.input(AppInput::SwitchPage(AppPages::ChooseFolder));
+                            self.curr_folder = None;
+                        }
+                    }
                 }
             }
             AppInput::PrevSF => {
                 if let Some(folder) = self.curr_folder.as_mut() {
-                    self.curr_sf = Some(folder.rollback().unwrap_or_else(|| folder.choose()));
+                    match folder.rollback() {
+                        Some(sfr) => folder.curr_sf = sfr,
+                        None => {
+                            sender.input(AppInput::SwitchPage(AppPages::ChooseFolder));
+                            self.curr_folder = None;
+                        }
+                    }
                 }
             }
+            AppInput::OpenSFImg => {
+                if let Some(folder) = self.curr_folder.as_ref() {
+                    folder.curr_sf.open_image();
+                }
+            }
+            AppInput::OpenSF => {
+                if let Some(folder) = self.curr_folder.as_ref() {
+                    folder.curr_sf.open_dir();
+                }
+            }
+            AppInput::TitlePopup(show) => match show {
+                true => self.title_popover.popup(),
+                false => self.title_popover.popdown(),
+            },
             AppInput::SetBookmarked(bookmarked) => {
                 if let Some(folder) = &self.curr_folder {
                     match bookmarked {
