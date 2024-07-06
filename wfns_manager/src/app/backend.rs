@@ -1,7 +1,5 @@
-use std::fs;
-
-use file_format::{FileFormat, Kind};
 use nanorand::{Rng, WyRand};
+use std::fs;
 
 macro_rules! tsuts {
     ($e:expr) => {

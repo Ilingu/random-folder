@@ -6,7 +6,6 @@ description = "Enjoy your special folders"
 
 [dependencies]
 dirs = "5.0.1"
-file-format = "0.25.0"
 nanorand = "0.7.0"
 opener = { version = "0.7.1", features = ["reveal"] }
 relm4 = { version = "0.8.0", features = ["libadwaita", "gnome_46"] }
