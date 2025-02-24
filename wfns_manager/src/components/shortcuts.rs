@@ -20,7 +20,7 @@ pub fn build_shortcuts_window(root: &gtk::Window) -> gtk::ShortcutsWindow {
         .title("Open new folder")
         .build();
     let open_sf_img = gtk::ShortcutsShortcut::builder()
-        .accelerator("<ctrl>o")
+        .accelerator("Up")
         .title("Open images in default OS image viewer")
         .build();
     let open_sf = gtk::ShortcutsShortcut::builder()

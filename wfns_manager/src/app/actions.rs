@@ -5,7 +5,7 @@ macro_rules! init_app_actions {
         app.set_accelerators_for_action::<NextSFAction>(&["Right"]);
         app.set_accelerators_for_action::<PrevSFAction>(&["Left"]);
         app.set_accelerators_for_action::<OpenNewDir>(&["<ctrl><shift>o"]);
-        app.set_accelerators_for_action::<OpenSFImg>(&["<ctrl>o"]);
+        app.set_accelerators_for_action::<OpenSFImg>(&["Up"]);
         app.set_accelerators_for_action::<OpenSF>(&["<ctrl>e"]);
 
         let next_sender = $sender.clone();
