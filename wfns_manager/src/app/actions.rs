@@ -2,8 +2,8 @@
 macro_rules! init_app_actions {
     ($sender:expr, $widgets:expr) => {
         let app = relm4::main_application();
-        app.set_accelerators_for_action::<NextSFAction>(&["<ctrl>n"]);
-        app.set_accelerators_for_action::<PrevSFAction>(&["<ctrl>p"]);
+        app.set_accelerators_for_action::<NextSFAction>(&["Right"]);
+        app.set_accelerators_for_action::<PrevSFAction>(&["Left"]);
         app.set_accelerators_for_action::<OpenNewDir>(&["<ctrl><shift>o"]);
         app.set_accelerators_for_action::<OpenSFImg>(&["<ctrl>o"]);
         app.set_accelerators_for_action::<OpenSF>(&["<ctrl>e"]);

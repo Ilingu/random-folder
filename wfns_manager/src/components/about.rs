@@ -32,7 +32,7 @@ impl SimpleComponent for AboutPageModel {
           set_website: "https://github.com/Ilingu/random-folder/tree/main/wfns_manager",
           set_comments: "Encrypts and enjoy your special folders",
           set_license_type: gtk::License::MitX11,
-          set_copyright :"© 2024 Ilingu",
+          set_copyright :"© 2025 Ilingu",
 
 
           #[watch]

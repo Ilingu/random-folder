@@ -51,7 +51,7 @@ impl SubFolder {
                 None => continue,
             };
             // fastest/cheapest way to find the first image, if not accurate, get all images and sort to find first one...
-            if [".jpg", ".png", ".gif"]
+            if [".jpg", ".png", ".jpeg", ".webp", ".gif"]
                 .iter()
                 .any(|ext| name.ends_with(ext))
                 && ["1", "01", "001", "0001"].iter().any(|x| &without_ext == x)

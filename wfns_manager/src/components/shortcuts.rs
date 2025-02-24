@@ -28,11 +28,11 @@ pub fn build_shortcuts_window(root: &gtk::Window) -> gtk::ShortcutsWindow {
         .title("Open subfolder in default OS file explorer")
         .build();
     let next = gtk::ShortcutsShortcut::builder()
-        .accelerator("<ctrl>n")
+        .accelerator("Right")
         .title("Pick next subfolder")
         .build();
     let prev = gtk::ShortcutsShortcut::builder()
-        .accelerator("<ctrl>p")
+        .accelerator("Left")
         .title("Rollback to last subfolder")
         .build();
     group.append(&open_new);
