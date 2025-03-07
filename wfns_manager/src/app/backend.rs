@@ -44,6 +44,7 @@ impl SubFolder {
 
     fn get_thumbnail(subpath: &str) -> Result<String, ()> {
         let mut entries = fs::read_dir(subpath).map_err(|_| ())?;
+        let mut imgs_name = vec![];
         while let Some(Ok(entry)) = entries.next() {
             let name = tsuts!(entry.file_name());
             let without_ext = match name.split('.').next() {
@@ -54,12 +55,20 @@ impl SubFolder {
             if [".jpg", ".png", ".jpeg", ".webp", ".gif"]
                 .iter()
                 .any(|ext| name.ends_with(ext))
-                && ["1", "01", "001", "0001"].iter().any(|x| &without_ext == x)
+                && ["1", "01", "01_1", "001", "001_1", "0001", "0001_1", "00001"]
+                    .iter()
+                    .any(|x| &without_ext == x)
             {
                 return Ok(name);
             }
+            imgs_name.push(name);
         }
-        Err(())
+
+        imgs_name.sort();
+        match imgs_name.first() {
+            Some(n) => Ok(n.to_owned()),
+            None => Err(()),
+        }
     }
 
     pub fn get_path(&self) -> String {
