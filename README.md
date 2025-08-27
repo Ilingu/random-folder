@@ -1,3 +1,4 @@
+<p align="center"><img src="https://github.com/Ilingu/random-folder/blob/tauri-old/src-tauri/icons/128x128.png" align="center" /></p>
 <h1 align="center">Random Folder 📁</h1>
 
 <h3 align="center">Random Folder is an <s>lightweight and blazingly fast</s> app that pick a random subfolder inside of a main folder.</h3>
