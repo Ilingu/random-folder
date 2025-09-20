@@ -4,9 +4,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum AppMode {
+    #[default]
+    SubFolders,
+    Images,
+    Videos,
+}
+
 #[derive(Debug, Default)]
 pub struct AppPreferences {
     pub favs_folders: HashSet<String>,
+    pub app_mode: AppMode,
 }
 
 /// Simple macro to return default when error (can be seen as an enhance '?')
@@ -43,6 +52,7 @@ impl AppPreferences {
             true => Self::default(),
             false => Self {
                 favs_folders: HashSet::from_iter(favs_folders),
+                ..Default::default()
             },
         }
     }

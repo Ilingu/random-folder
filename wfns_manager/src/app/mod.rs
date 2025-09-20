@@ -18,6 +18,7 @@ use relm4::{
 };
 
 use crate::{
+    app::{backend::Openable, preferences::AppMode},
     components::{
         about::{AboutInput, AboutPageModel},
         fav_folder::{FavFolderModel, FavFolderOutput},
@@ -76,14 +77,15 @@ pub enum AppInput {
     OpenShortcuts,
     ChooseFolder,
     AddFolder(String),
-    NextSF,
-    PrevSF,
-    OpenSFImg,
-    OpenSF,
+    NextItem,
+    PrevItem,
+    OpenImg,
+    OpenDir,
     PushToast((String, Duration)),
     SwitchPage(AppPages),
     SetBookmarked(bool),
     TitlePopup(bool),
+    ChangeAppMode(AppMode),
 }
 
 // component
@@ -157,7 +159,7 @@ impl SimpleComponent for AppModel {
                                         set_enable_expansion: true,
                                         set_hexpand: true,
                                     },
-                                }
+                                },
                             },
 
                             add_named[Some("viewfolder")] = &gtk::Box {
@@ -172,22 +174,31 @@ impl SimpleComponent for AppModel {
                                     set_margin_top: 20,
 
                                     gtk::Image {
-                                        set_pixel_size: 600,
+                                        #[watch]
+                                        set_pixel_size: match model.prefs.app_mode.clone() {
+                                            AppMode::SubFolders | AppMode::Videos => 600,
+                                            AppMode::Images => 860, // highest number before it breaks the app
+                                        },
                                         set_size_request: (400, 600),
                                         set_margin_horizontal: 10,
                                         set_margin_top: 10,
 
                                         #[watch]
-                                        set_from_file: match &model.curr_folder {
-                                            Some(f) if f.curr_sf.thumbnail.is_some() =>
-                                                Some(format!("{}/{}", f.curr_sf.get_path(), f.curr_sf.thumbnail.as_ref().unwrap())),
+                                        set_from_file: match (&model.curr_folder, model.prefs.app_mode.clone()) {
+                                            (Some(f), AppMode::SubFolders) if f.subfolders.get(f.curr).is_some() && f.subfolders.get(f.curr).unwrap().thumbnail.is_some()  => Some(format!("{}/{}", f.subfolders[f.curr].get_path(), f.subfolders[f.curr].thumbnail.as_ref().unwrap())),
+                                            (Some(f), AppMode::Images) => f.images.get(f.curr).map(|i| i.filepath.clone()),
+                                            (Some(f), AppMode::Videos) => f.videos.get(f.curr).and_then(|v| backend::get_video_thumbnail(&v.filepath.clone()).ok()),
                                             _ => None::<String>,
                                         },
                                     },
 
                                     gtk::Label {
                                         #[watch]
-                                        set_label: model.curr_folder.as_ref().map(|f| &f.curr_sf.name).unwrap_or(&String::new()),
+                                        set_label: model.curr_folder.as_ref().map(|f| match model.prefs.app_mode {
+                                            AppMode::SubFolders => f.subfolders.get(f.curr).map(|sf| sf.name.as_str()).unwrap_or_default(),
+                                            AppMode::Images => f.images.get(f.curr).map(|i| i.name.as_str()).unwrap_or_default(),
+                                            AppMode::Videos => f.videos.get(f.curr).map(|v| v.name.as_str()).unwrap_or_default(),
+                                        }).unwrap_or(""),
                                         add_css_class: "title-2",
                                         set_margin_horizontal: 10,
                                         set_ellipsize: gtk::pango::EllipsizeMode::End,
@@ -213,7 +224,11 @@ impl SimpleComponent for AppModel {
 
                                         gtk::Label {
                                             #[watch]
-                                            set_label: model.curr_folder.as_ref().map(|f| &f.curr_sf.name).unwrap_or(&String::new()),
+                                            set_label: model.curr_folder.as_ref().map(|f| match model.prefs.app_mode {
+                                                AppMode::SubFolders => f.subfolders.get(f.curr).map(|sf| sf.name.as_str()).unwrap_or_default(),
+                                                AppMode::Images => f.images.get(f.curr).map(|i| i.name.as_str()).unwrap_or_default(),
+                                                AppMode::Videos => f.videos.get(f.curr).map(|v| v.name.as_str()).unwrap_or_default(),
+                                            }).unwrap_or(""),
                                             set_margin_all: 12,
                                         }
                                     },
@@ -226,17 +241,17 @@ impl SimpleComponent for AppModel {
                                         gtk::Button {
                                             set_css_classes: &["pill", "suggested-action"],
                                             set_icon_name: "media-playlist-shuffle-symbolic",
-                                            connect_clicked => AppInput::NextSF,
+                                            connect_clicked => AppInput::NextItem,
                                         },
                                         gtk::Button {
                                             set_css_classes: &["pill", "suggested-action"],
                                             set_icon_name: "media-seek-backward-symbolic",
-                                            connect_clicked => AppInput::PrevSF,
+                                            connect_clicked => AppInput::PrevItem,
                                         },
                                         gtk::Button {
                                             set_css_classes: &["pill", "suggested-action"],
                                             set_icon_name: "eye",
-                                            connect_clicked => AppInput::OpenSFImg,
+                                            connect_clicked => AppInput::OpenImg,
                                         },
                                     }
                                 }
@@ -261,6 +276,7 @@ impl SimpleComponent for AppModel {
                 HeaderOutput::Shortcuts => AppInput::OpenShortcuts,
                 HeaderOutput::NewDir => AppInput::ChooseFolder,
                 HeaderOutput::SetBookmarked(b) => AppInput::SetBookmarked(b),
+                HeaderOutput::ChangeAppMode(new_app_mode) => AppInput::ChangeAppMode(new_app_mode),
             });
         let about_page = AboutPageModel::builder()
             .transient_for(&root)
@@ -339,8 +355,14 @@ impl SimpleComponent for AppModel {
                     },
                 )
             }
+            AppInput::ChangeAppMode(new_app_mode) => {
+                if let Some(folder) = self.curr_folder.as_mut() {
+                    folder.reset_curr_index();
+                }
+                self.prefs.app_mode = new_app_mode;
+            }
             AppInput::AddFolder(path) => {
-                let folder = match AppFolderManager::set_folder(path) {
+                let (folder, rec_app_mode) = match AppFolderManager::set_folder(path) {
                     Ok(f) => f,
                     Err(_) => {
                         return push_toast!(
@@ -364,39 +386,72 @@ impl SimpleComponent for AppModel {
                 ));
                 self.curr_folder = Some(folder);
 
-                sender.input(AppInput::NextSF); // before UI update to prevent user to see "blank" screen
+                // sender.input(AppInput::NextItem); // before UI update to prevent user to see "blank" screen
+                if let Some(new_app_mode) = rec_app_mode {
+                    sender.input(AppInput::ChangeAppMode(new_app_mode.clone()));
+                    let _ = self
+                        .header
+                        .sender()
+                        .send(HeaderInput::ChangeToKnownAppMode(new_app_mode));
+                }
                 sender.input(AppInput::SwitchPage(AppPages::ViewFolder));
             }
-            AppInput::NextSF => {
+            AppInput::NextItem => {
                 if let Some(folder) = self.curr_folder.as_mut() {
-                    match folder.choose(true) {
-                        Ok(sf) => folder.curr_sf = sf,
-                        Err(_) => {
-                            sender.input(AppInput::SwitchPage(AppPages::ChooseFolder));
-                            self.curr_folder = None;
-                        }
+                    if folder.next(self.prefs.app_mode.clone()).is_err() {
+                        sender.input(AppInput::SwitchPage(AppPages::ChooseFolder));
+                        self.curr_folder = None;
                     }
                 }
             }
-            AppInput::PrevSF => {
+            AppInput::PrevItem => {
                 if let Some(folder) = self.curr_folder.as_mut() {
-                    match folder.rollback() {
-                        Some(sfr) => folder.curr_sf = sfr,
-                        None => {
-                            sender.input(AppInput::SwitchPage(AppPages::ChooseFolder));
-                            self.curr_folder = None;
-                        }
+                    if folder.prev(self.prefs.app_mode.clone()).is_err() {
+                        sender.input(AppInput::SwitchPage(AppPages::ChooseFolder));
+                        self.curr_folder = None;
                     }
                 }
             }
-            AppInput::OpenSFImg => {
+            AppInput::OpenImg => {
                 if let Some(folder) = self.curr_folder.as_ref() {
-                    folder.curr_sf.open_image();
+                    match self.prefs.app_mode {
+                        AppMode::SubFolders => {
+                            if let Some(sf) = folder.subfolders.get(folder.curr) {
+                                sf.open_image();
+                            }
+                        }
+                        AppMode::Images => {
+                            if let Some(i) = folder.images.get(folder.curr) {
+                                i.open_image();
+                            }
+                        }
+                        AppMode::Videos => {
+                            if let Some(v) = folder.videos.get(folder.curr) {
+                                v.open_image();
+                            }
+                        }
+                    };
                 }
             }
-            AppInput::OpenSF => {
+            AppInput::OpenDir => {
                 if let Some(folder) = self.curr_folder.as_ref() {
-                    folder.curr_sf.open_dir();
+                    match self.prefs.app_mode {
+                        AppMode::SubFolders => {
+                            if let Some(sf) = folder.subfolders.get(folder.curr) {
+                                sf.open_dir();
+                            }
+                        }
+                        AppMode::Images => {
+                            if let Some(i) = folder.images.get(folder.curr) {
+                                i.open_dir();
+                            }
+                        }
+                        AppMode::Videos => {
+                            if let Some(v) = folder.videos.get(folder.curr) {
+                                v.open_dir();
+                            }
+                        }
+                    };
                 }
             }
             AppInput::TitlePopup(show) => match show {

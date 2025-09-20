@@ -4,9 +4,12 @@ use relm4::{
     adw, gtk, ComponentParts, ComponentSender, SimpleComponent,
 };
 
+use crate::app::preferences::AppMode;
+
 pub struct HeaderModel {
     bookmarked: bool,
     show_bookmark_btn: bool,
+    app_mode: AppMode,
 }
 
 #[derive(Debug)]
@@ -14,6 +17,8 @@ pub enum HeaderInput {
     ShowBookmarkBtn(bool),
     ToogleBookmark(bool),
     SetBookmark(bool),
+    ChangeAppMode,
+    ChangeToKnownAppMode(AppMode),
 }
 
 #[derive(Debug)]
@@ -22,6 +27,7 @@ pub enum HeaderOutput {
     Shortcuts,
     NewDir,
     SetBookmarked(bool),
+    ChangeAppMode(AppMode),
 }
 
 relm4::new_action_group!(HeaderMenuActionGroup, "win");
@@ -44,6 +50,18 @@ impl SimpleComponent for HeaderModel {
                     set_icon_name: "folder-open-symbolic",
                 },
                 connect_clicked[sender] => move |_| { let _ = sender.output(HeaderOutput::NewDir); },
+            },
+            pack_start = &gtk::Button {
+                set_margin_start: 5,
+                adw::ButtonContent {
+                    #[watch]
+                    set_icon_name: match model.app_mode {
+                        AppMode::SubFolders => "folder-drag-accept-symbolic",
+                        AppMode::Images => "image-x-generic-symbolic",
+                        AppMode::Videos => "folder-videos-symbolic",
+                    },
+                },
+                connect_clicked => HeaderInput::ChangeAppMode,
             },
             pack_start = &gtk::Button {
                 set_margin_start: 5,
@@ -82,6 +100,7 @@ impl SimpleComponent for HeaderModel {
         let model = HeaderModel {
             bookmarked,
             show_bookmark_btn: show,
+            app_mode: AppMode::default(),
         };
         let widgets = view_output!();
 
@@ -115,6 +134,17 @@ impl SimpleComponent for HeaderModel {
                 if back_to_app {
                     let _ = sender.output(HeaderOutput::SetBookmarked(self.bookmarked));
                 }
+            }
+            HeaderInput::ChangeToKnownAppMode(nam) => {
+                self.app_mode = nam;
+            }
+            HeaderInput::ChangeAppMode => {
+                self.app_mode = match self.app_mode {
+                    AppMode::SubFolders => AppMode::Images,
+                    AppMode::Images => AppMode::Videos,
+                    AppMode::Videos => AppMode::SubFolders,
+                };
+                let _ = sender.output(HeaderOutput::ChangeAppMode(self.app_mode.clone()));
             }
             HeaderInput::SetBookmark(b) => self.bookmarked = b,
         }
