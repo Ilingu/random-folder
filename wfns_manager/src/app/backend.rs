@@ -1,8 +1,8 @@
 use nanorand::{Rng, WyRand};
 use std::{
-    fs::{self, File},
+    fs::{self},
     path::Path,
-    process::{Command, ExitStatus},
+    process::Command,
 };
 
 use crate::app::preferences::AppMode;
